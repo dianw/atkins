@@ -25,34 +25,40 @@ public class DatabaseInitConfig {
         
         try {
             // Execute each table creation statement individually
-            executeStatement("CREATE TABLE IF NOT EXISTS messages_by_room_time (" +
-                    "room_id UUID, " +
-                    "time_bucket TEXT, " +
-                    "message_time TIMESTAMP, " +
-                    "message_id UUID, " +
-                    "user_id UUID, " +
-                    "message_text TEXT, " +
-                    "message_type INT, " +
-                    "PRIMARY KEY ((room_id, time_bucket), message_time, message_id)" +
-                    ") WITH CLUSTERING ORDER BY (message_time DESC)");
+            executeStatement("""
+                CREATE TABLE IF NOT EXISTS messages_by_room_time (
+                    room_id UUID,
+                    time_bucket TEXT,
+                    message_time TIMESTAMP,
+                    message_id UUID,
+                    user_id UUID,
+                    message_text TEXT,
+                    message_type INT,
+                    PRIMARY KEY ((room_id, time_bucket), message_time, message_id)
+                ) WITH CLUSTERING ORDER BY (message_time DESC)
+                """);
             
-            executeStatement("CREATE TABLE IF NOT EXISTS user_timeline (" +
-                    "user_id UUID, " +
-                    "message_time TIMESTAMP, " +
-                    "room_id UUID, " +
-                    "message_id UUID, " +
-                    "message_preview TEXT, " +
-                    "PRIMARY KEY (user_id, message_time, message_id)" +
-                    ") WITH CLUSTERING ORDER BY (message_time DESC)");
+            executeStatement("""
+                CREATE TABLE IF NOT EXISTS user_timeline (
+                    user_id UUID,
+                    message_time TIMESTAMP,
+                    room_id UUID,
+                    message_id UUID,
+                    message_preview TEXT,
+                    PRIMARY KEY (user_id, message_time, message_id)
+                ) WITH CLUSTERING ORDER BY (message_time DESC)
+                """);
             
-            executeStatement("CREATE TABLE IF NOT EXISTS room_activity (" +
-                    "room_id UUID, " +
-                    "activity_time TIMESTAMP, " +
-                    "user_id UUID, " +
-                    "activity_type TEXT, " +
-                    "PRIMARY KEY (room_id, activity_time, user_id)" +
-                    ") WITH CLUSTERING ORDER BY (activity_time DESC) " +
-                    "AND default_time_to_live = 3600");
+            executeStatement("""
+                CREATE TABLE IF NOT EXISTS room_activity (
+                    room_id UUID,
+                    activity_time TIMESTAMP,
+                    user_id UUID,
+                    activity_type TEXT,
+                    PRIMARY KEY (room_id, activity_time, user_id)
+                ) WITH CLUSTERING ORDER BY (activity_time DESC)
+                AND default_time_to_live = 3600
+                """);
             
             logger.info("Database initialization completed successfully.");
             
