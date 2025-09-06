@@ -1,4 +1,4 @@
-package com.atkins;
+package org.enkrip.atkins;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
