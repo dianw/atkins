@@ -1,0 +1,59 @@
+version: '3.8'
+
+# Lightweight ScyllaDB configuration for development on low-memory systems
+# This configuration uses minimal resources and is suitable for basic development
+
+services:
+  scylla1:
+    image: scylladb/scylla:5.4
+    container_name: scylla-node1-light
+    restart: unless-stopped
+    command: --seeds=scylla1 --smp 1 --memory 256M --overprovisioned 1 --api-address 0.0.0.0 --developer-mode 1 --skip-wait-for-gossip-to-settle 0
+    volumes:
+      - scylla-light-data1:/var/lib/scylla
+    networks:
+      - scylla-light-network
+    ports:
+      - "9042:9042"  # CQL port
+      - "10000:10000" # REST API port
+    mem_limit: 512m
+    memswap_limit: 512m
+    ulimits:
+      memlock: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'SELECT now() FROM system.local' || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 90s
+
+  # Keyspace initialization service
+  scylla-init:
+    image: scylladb/scylla:5.4
+    container_name: scylla-init-light
+    networks:
+      - scylla-light-network
+    depends_on:
+      scylla1:
+        condition: service_healthy
+    entrypoint: []
+    command: >
+      bash -c "
+        echo 'Waiting for ScyllaDB to be ready...'
+        sleep 10
+        echo 'Creating keyspace atkins if not exists...'
+        cqlsh scylla1 -e \"CREATE KEYSPACE IF NOT EXISTS atkins WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1};\"
+        echo 'Keyspace atkins created successfully or already exists'
+      "
+    restart: "no"
+
+volumes:
+  scylla-light-data1:
+    driver: local
+
+networks:
+  scylla-light-network:
+    driver: bridge

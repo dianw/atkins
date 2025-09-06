@@ -1,0 +1,18 @@
+spring:
+  cassandra:
+    contact-points: 
+      - 127.0.0.1:9042
+      - 127.0.0.1:9043
+      - 127.0.0.1:9044
+    keyspace-name: atkins
+    local-datacenter: datacenter1
+    request:
+      timeout: 10s
+      consistency: LOCAL_ONE
+    connection:
+      init-query-timeout: 10s
+
+logging:
+  level:
+    "[com.datastax.oss.driver]": DEBUG
+    "[org.springframework.data.cassandra]": DEBUG

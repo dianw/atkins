@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  scylla1:
+    image: scylladb/scylla:5.4
+    container_name: scylla-node1
+    restart: unless-stopped
+    command: --seeds=scylla1,scylla2 --smp 1 --memory 512M --overprovisioned 1 --api-address 0.0.0.0 --developer-mode 1
+    volumes:
+      - scylla-data1:/var/lib/scylla
+    networks:
+      - scylla-network
+    ports:
+      - "9042:9042"  # CQL port
+      - "9160:9160"  # Thrift port
+      - "10000:10000" # REST API port
+    mem_limit: 1g
+    memswap_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  scylla2:
+    image: scylladb/scylla:5.4
+    container_name: scylla-node2
+    restart: unless-stopped
+    command: --seeds=scylla1,scylla2 --smp 1 --memory 512M --overprovisioned 1 --api-address 0.0.0.0 --developer-mode 1
+    volumes:
+      - scylla-data2:/var/lib/scylla
+    networks:
+      - scylla-network
+    ports:
+      - "9043:9042"  # CQL port (mapped to different host port)
+      - "9161:9160"  # Thrift port
+      - "10001:10000" # REST API port
+    mem_limit: 1g
+    memswap_limit: 1g
+    depends_on:
+      scylla1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  scylla3:
+    image: scylladb/scylla:5.4
+    container_name: scylla-node3
+    restart: unless-stopped
+    command: --seeds=scylla1,scylla2 --smp 1 --memory 512M --overprovisioned 1 --api-address 0.0.0.0 --developer-mode 1
+    volumes:
+      - scylla-data3:/var/lib/scylla
+    networks:
+      - scylla-network
+    ports:
+      - "9044:9042"  # CQL port (mapped to different host port)
+      - "9162:9160"  # Thrift port
+      - "10002:10000" # REST API port
+    mem_limit: 1g
+    memswap_limit: 1g
+    depends_on:
+      scylla2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # Keyspace initialization service
+  scylla-init:
+    image: scylladb/scylla:5.4
+    container_name: scylla-init
+    networks:
+      - scylla-network
+    depends_on:
+      scylla1:
+        condition: service_healthy
+      scylla2:
+        condition: service_healthy
+      scylla3:
+        condition: service_healthy
+    entrypoint: []
+    command: >
+      bash -c "
+        echo 'Waiting for ScyllaDB cluster to be ready...'
+        sleep 10
+        echo 'Creating keyspace atkins if not exists...'
+        cqlsh scylla1 -e \"CREATE KEYSPACE IF NOT EXISTS atkins WITH REPLICATION = {'class': 'NetworkTopologyStrategy', 'datacenter1': 3};\"
+        echo 'Keyspace atkins created successfully or already exists'
+      "
+    restart: "no"
+
+  # Optional: ScyllaDB Monitoring (Grafana + Prometheus)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: scylla-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - scylla-network
+    ports:
+      - "9090:9090"
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: scylla-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - scylla-network
+    ports:
+      - "3000:3000"
+    profiles:
+      - monitoring
+
+volumes:
+  scylla-data1:
+    driver: local
+  scylla-data2:
+    driver: local
+  scylla-data3:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  scylla-network:
+    driver: bridge
