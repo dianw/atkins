@@ -11,7 +11,6 @@ import org.enkrip.atkins.chat.model.MessagesByRoomTime;
 import org.enkrip.atkins.chat.service.ChatService;
 import org.enkrip.atkins.shared.enums.MessageType;
 import org.enkrip.atkins.shared.service.ChatCoordinatorService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,11 +23,13 @@ import java.util.UUID;
 @Tag(name = "Chat Management", description = "APIs for managing chat messages and room communications")
 public class ChatController {
 
-    @Autowired
-    private ChatService chatService;
+    private final ChatService chatService;
+    private final ChatCoordinatorService chatCoordinatorService;
 
-    @Autowired
-    private ChatCoordinatorService chatCoordinatorService;
+    public ChatController(ChatService chatService, ChatCoordinatorService chatCoordinatorService) {
+        this.chatService = chatService;
+        this.chatCoordinatorService = chatCoordinatorService;
+    }
 
     @Operation(
             summary = "Send a message to a room",

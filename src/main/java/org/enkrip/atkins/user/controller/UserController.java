@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.enkrip.atkins.user.model.UserTimeline;
 import org.enkrip.atkins.user.service.UserTimelineService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,8 +21,11 @@ import java.util.UUID;
 @Tag(name = "User Management", description = "APIs for managing user timelines and activities")
 public class UserController {
 
-    @Autowired
-    private UserTimelineService userTimelineService;
+    private final UserTimelineService userTimelineService;
+
+    public UserController(UserTimelineService userTimelineService) {
+        this.userTimelineService = userTimelineService;
+    }
 
     @Operation(
             summary = "Get user's timeline across all rooms",

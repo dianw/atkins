@@ -11,7 +11,6 @@ import org.enkrip.atkins.room.model.RoomActivity;
 import org.enkrip.atkins.room.service.RoomActivityService;
 import org.enkrip.atkins.shared.enums.ActivityType;
 import org.enkrip.atkins.shared.service.ChatCoordinatorService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,11 +23,13 @@ import java.util.UUID;
 @Tag(name = "Room Management", description = "APIs for managing room activities and user presence")
 public class RoomController {
 
-    @Autowired
-    private RoomActivityService roomActivityService;
+    private final RoomActivityService roomActivityService;
+    private final ChatCoordinatorService chatCoordinatorService;
 
-    @Autowired
-    private ChatCoordinatorService chatCoordinatorService;
+    public RoomController(RoomActivityService roomActivityService, ChatCoordinatorService chatCoordinatorService) {
+        this.roomActivityService = roomActivityService;
+        this.chatCoordinatorService = chatCoordinatorService;
+    }
 
     @Operation(
             summary = "Record user activity",

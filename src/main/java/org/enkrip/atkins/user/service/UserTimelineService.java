@@ -3,7 +3,6 @@ package org.enkrip.atkins.user.service;
 import org.enkrip.atkins.user.model.UserTimeline;
 import org.enkrip.atkins.user.model.UserTimelineKey;
 import org.enkrip.atkins.user.repository.UserTimelineRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -13,8 +12,11 @@ import java.util.UUID;
 @Service
 public class UserTimelineService {
 
-    @Autowired
-    private UserTimelineRepository userTimelineRepository;
+    private final UserTimelineRepository userTimelineRepository;
+
+    public UserTimelineService(UserTimelineRepository userTimelineRepository) {
+        this.userTimelineRepository = userTimelineRepository;
+    }
 
     /**
      * Add a message to user's timeline

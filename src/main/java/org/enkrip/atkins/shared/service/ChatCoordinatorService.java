@@ -6,7 +6,6 @@ import org.enkrip.atkins.room.service.RoomActivityService;
 import org.enkrip.atkins.shared.enums.ActivityType;
 import org.enkrip.atkins.shared.enums.MessageType;
 import org.enkrip.atkins.user.service.UserTimelineService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,14 +17,17 @@ import java.util.UUID;
 @Service
 public class ChatCoordinatorService {
 
-    @Autowired
-    private ChatService chatService;
+    private final ChatService chatService;
+    private final UserTimelineService userTimelineService;
+    private final RoomActivityService roomActivityService;
 
-    @Autowired
-    private UserTimelineService userTimelineService;
-
-    @Autowired
-    private RoomActivityService roomActivityService;
+    public ChatCoordinatorService(ChatService chatService, 
+                                UserTimelineService userTimelineService,
+                                RoomActivityService roomActivityService) {
+        this.chatService = chatService;
+        this.userTimelineService = userTimelineService;
+        this.roomActivityService = roomActivityService;
+    }
 
     /**
      * Send a message and update all related tables

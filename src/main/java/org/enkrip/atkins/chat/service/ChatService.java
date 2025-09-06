@@ -4,7 +4,6 @@ import org.enkrip.atkins.chat.model.MessagesByRoomTime;
 import org.enkrip.atkins.chat.model.MessagesByRoomTimeKey;
 import org.enkrip.atkins.chat.repository.MessagesByRoomTimeRepository;
 import org.enkrip.atkins.shared.util.TimeBucketUtil;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -14,8 +13,11 @@ import java.util.UUID;
 @Service
 public class ChatService {
 
-    @Autowired
-    private MessagesByRoomTimeRepository messagesByRoomTimeRepository;
+    private final MessagesByRoomTimeRepository messagesByRoomTimeRepository;
+
+    public ChatService(MessagesByRoomTimeRepository messagesByRoomTimeRepository) {
+        this.messagesByRoomTimeRepository = messagesByRoomTimeRepository;
+    }
 
     /**
      * Save a new message

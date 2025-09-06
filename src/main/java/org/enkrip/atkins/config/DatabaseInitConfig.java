@@ -1,20 +1,23 @@
 package org.enkrip.atkins.config;
 
-import com.datastax.oss.driver.api.core.CqlSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
+
+import com.datastax.oss.driver.api.core.CqlSession;
 
 @Configuration
 public class DatabaseInitConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseInitConfig.class);
 
-    @Autowired
-    private CqlSession cqlSession;
+    private final CqlSession cqlSession;
+
+    public DatabaseInitConfig(CqlSession cqlSession) {
+        this.cqlSession = cqlSession;
+    }
 
     @EventListener(ApplicationReadyEvent.class)
     public void initializeDatabase() {

@@ -3,7 +3,6 @@ package org.enkrip.atkins.room.service;
 import org.enkrip.atkins.room.model.RoomActivity;
 import org.enkrip.atkins.room.model.RoomActivityKey;
 import org.enkrip.atkins.room.repository.RoomActivityRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -13,8 +12,11 @@ import java.util.UUID;
 @Service
 public class RoomActivityService {
 
-    @Autowired
-    private RoomActivityRepository roomActivityRepository;
+    private final RoomActivityRepository roomActivityRepository;
+
+    public RoomActivityService(RoomActivityRepository roomActivityRepository) {
+        this.roomActivityRepository = roomActivityRepository;
+    }
 
     /**
      * Record user activity in a room
