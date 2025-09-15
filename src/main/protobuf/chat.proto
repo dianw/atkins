@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package org.enkrip.atkins.proto;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.enkrip.atkins.proto";
+option java_outer_classname = "ChatRpcProto";
+option java_multiple_files = true;
+
+// Main RPC envelope message
+message RPCRequestEnvelope {
+  string request_id = 1; // Unique ID for the request/response pair
+  MessageType message_type = 2; // Type of message: REQUEST, RESPONSE, NOTIFICATION
+  MessageOperationType operation_type = 3; // Specific operation being performed
+
+  oneof payload {
+    GetListOfConversationsRequest get_list_of_conversations_request = 4;
+    StartConversationRequest start_conversation_request = 5;
+    SendConversationMessageRequest send_conversation_message_request = 6;
+  }
+}
+
+message RPCResponseEnvelope {
+  string request_id = 1; // Unique ID for the request/response pair
+  MessageType message_type = 2; // Type of message: REQUEST, RESPONSE, NOTIFICATION
+  MessageOperationType operation_type = 3; // Specific operation being performed
+  bool success = 4; // Indicates if the operation was successful
+  string error_code = 5; // Error message if success is false
+  string error_message = 6; // Error message if success is false
+
+  oneof payload {
+    GetListOfConversationsResponse get_list_of_conversations_response = 7;
+    StartConversationResponse start_conversation_response = 8;
+    SendConversationMessageResponse send_conversation_message_response = 9;
+    ReceiveConversationMessageNotification receive_conversation_message_notification = 10;
+  }
+}
+
+message GetListOfConversationsRequest {
+  optional string before_conversation_id = 1; // For pagination: fetch conversations before this ID
+  int32 limit = 3; // Maximum number of conversations to fetch
+}
+
+message GetListOfConversationsResponse {
+  repeated Conversation conversations = 1; // List of conversations
+  bool has_more = 2; // Indicates if there are more conversations before the fetched list
+  string last_conversation_id = 3; // ID of the last conversation in the fetched list for pagination
+}
+
+message StartConversationRequest {
+  repeated string participant_user_ids = 1; // User IDs of participants to start a conversation with
+}
+
+message StartConversationResponse {
+  Conversation conversation = 1; // The newly created conversation
+}
+
+message SendConversationMessageRequest {
+  string conversation_id = 1; // ID of the conversation to send the message to
+  ChatMessageType message_type = 2; // Type of message: TEXT, IMAGE, FILE
+  string content = 3; // Content of the message (text or URL to file/image)
+}
+
+message SendConversationMessageResponse {
+  ChatMessage message = 1; // The sent message
+}
+
+message ReceiveConversationMessageNotification {
+  ChatMessage message = 1; // The received message
+}
+
+message Conversation {
+  string conversation_id = 1;
+  optional ChatMessage last_message = 2;
+  repeated ChatUser participants = 3;
+  google.protobuf.Timestamp last_updated_timestamp = 4; // Unix timestamp of the last update
+  int32 version = 5; // Version number for concurrency control
+  int32 unread_count = 6; // Number of unread messages in the conversation
+}
+
+message ChatMessage {
+  string message_id = 1;
+  optional string conversation_id = 2;
+  optional ChatUser sender = 3;
+  google.protobuf.Timestamp timestamp = 4; // Unix timestamp of when the message was sent
+  ChatMessageType message_type = 5; // Type of message: TEXT, IMAGE, FILE
+  string content = 6; // Content of the message (text or URL to file/image)
+  bool my_message = 7; // Indicates if the message was sent by the current user
+  bool read = 8; // Indicates if the message has been read by the recipient(s)
+  int32 version = 9; // Version number for concurrency control
+}
+
+message ChatUser {
+  string user_id = 1;
+  string username = 2;
+  optional string display_name = 3;
+  optional string avatar_url = 4; // URL to the user's avatar image
+}
+
+enum MessageOperationType {
+  GET_LIST_OF_CONVERSATIONS = 0;
+  GET_CONVERSATION = 1;
+  START_CONVERSATION = 2;
+  DELETE_CONVERSATION = 3;
+  SEND_CONVERSATION_MESSAGE = 4;
+  DELETE_CONVERSATION_MESSAGE = 5;
+  RECEIVE_CONVERSATION_MESSAGE = 6;
+  MARK_CONVERSATION_AS_READ = 7;
+  TYPING_INDICATOR = 8;
+}
+
+enum MessageType {
+  REQUEST = 0;
+  RESPONSE = 1;
+  NOTIFICATION = 2;
+}
+
+enum ChatMessageType {
+  TEXT = 0;
+  IMAGE = 1;
+  FILE = 2;
+  EMOJI = 3;
+}

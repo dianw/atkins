@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atkins WebSocket Chat Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.5/dist/protobuf.min.js"></script>
+    <style>
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="h-screen bg-gray-100 flex">
+        <!-- Sidebar with conversations -->
+        <div class="w-1/3 bg-white border-r border-gray-200 flex flex-col">
+            <!-- Header -->
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h1 class="text-xl font-semibold text-gray-800">Conversations</h1>
+                <button
+                    @click="openNewConversationModal"
+                    class="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center transition-colors"
+                    title="New Conversation"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Connection Status -->
+            <div class="px-4 py-2 border-b border-gray-200">
+                <div class="flex items-center space-x-2">
+                    <div class="w-2 h-2 rounded-full" :class="connectionStatusClass"></div>
+                    <span class="text-sm font-medium" :class="connectionTextClass">{{ connectionStatus }}</span>
+                </div>
+            </div>
+
+            <!-- Conversations List -->
+            <div class="flex-1 overflow-y-auto scrollbar-hide">
+                <div v-if="conversations.length === 0" class="p-4 text-center text-gray-500">
+                    No conversations yet
+                </div>
+                <div
+                    v-for="conversation in conversations"
+                    :key="conversation.conversation_id"
+                    @click="selectConversation(conversation)"
+                    class="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                    :class="{ 'bg-blue-50 border-blue-200': selectedConversation?.conversation_id === conversation.conversation_id }"
+                >
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2">
+                                <h3 class="font-medium text-gray-900 truncate">
+                                    {{ getConversationTitle(conversation) }}
+                                </h3>
+                                <span v-if="conversation.unread_count > 0"
+                                      class="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                                    {{ conversation.unread_count }}
+                                </span>
+                            </div>
+                            <p v-if="conversation.last_message" class="text-sm text-gray-600 truncate mt-1">
+                                {{ conversation.last_message.content }}
+                            </p>
+                        </div>
+                        <span v-if="conversation.last_updated_timestamp" class="text-xs text-gray-400">
+                            {{ formatTime(conversation.last_updated_timestamp) }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="flex-1 flex flex-col">
+            <!-- Chat Header -->
+            <div v-if="selectedConversation" class="p-4 border-b border-gray-200 bg-white">
+                <h2 class="text-lg font-semibold text-gray-800">{{ getConversationTitle(selectedConversation) }}</h2>
+                <div class="flex items-center space-x-2 mt-1">
+                    <div class="flex -space-x-2">
+                        <div v-for="participant in selectedConversation.participants"
+                             :key="participant.user_id"
+                             class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs border-2 border-white"
+                             :title="participant.display_name || participant.username">
+                            {{ (participant.display_name || participant.username).charAt(0).toUpperCase() }}
+                        </div>
+                    </div>
+                    <span class="text-sm text-gray-500">{{ selectedConversation.participants.length }} participants</span>
+                </div>
+            </div>
+
+            <!-- Welcome Message -->
+            <div v-if="!selectedConversation" class="flex-1 flex items-center justify-center bg-gray-50">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Select a conversation</h3>
+                    <p class="text-gray-500">Choose a conversation from the sidebar or start a new one</p>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div v-if="selectedConversation" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 scrollbar-hide" ref="messagesContainer">
+                <div v-for="message in messages" :key="message.message_id" class="flex" :class="{ 'justify-end': message.my_message }">
+                    <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg" :class="messageClass(message)">
+                        <div v-if="!message.my_message" class="text-xs text-gray-600 mb-1">
+                            {{ message.sender?.display_name || message.sender?.username || 'Unknown' }}
+                        </div>
+                        <div class="text-sm">{{ message.content }}</div>
+                        <div class="text-xs mt-1" :class="message.my_message ? 'text-blue-200' : 'text-gray-500'">
+                            {{ formatTime(message.timestamp) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message Input -->
+            <div v-if="selectedConversation" class="p-4 bg-white border-t border-gray-200">
+                <div class="flex space-x-3">
+                    <input
+                        v-model="newMessage"
+                        @keypress.enter="sendMessage"
+                        type="text"
+                        placeholder="Type a message..."
+                        class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        :disabled="!isConnected"
+                    >
+                    <button
+                        @click="sendMessage"
+                        :disabled="!isConnected || !newMessage.trim()"
+                        class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    >
+                        Send
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- New Conversation Modal -->
+        <div v-if="showNewConversationModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-6 w-96 max-w-90vw">
+                <h3 class="text-lg font-semibold mb-4">Start New Conversation</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Participants</label>
+
+                        <!-- Loading state -->
+                        <div v-if="loadingParticipants" class="text-center py-4">
+                            <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                            <p class="text-sm text-gray-500 mt-2">Loading participants...</p>
+                        </div>
+
+                        <!-- Error state -->
+                        <div v-else-if="participantsError" class="text-center py-4">
+                            <p class="text-sm text-red-500 mb-2">{{ participantsError }}</p>
+                            <button
+                                @click="loadParticipants"
+                                class="text-blue-500 hover:text-blue-600 text-sm underline"
+                            >
+                                Retry
+                            </button>
+                        </div>
+
+                        <!-- Participants list -->
+                        <div v-else class="max-h-60 overflow-y-auto border border-gray-300 rounded-lg">
+                            <div v-if="availableParticipants.length === 0" class="p-4 text-center text-gray-500">
+                                No participants available
+                            </div>
+                            <div v-else>
+                                <div
+                                    v-for="participant in availableParticipants"
+                                    :key="participant.user_id"
+                                    class="flex items-center p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        :id="'participant-' + participant.user_id"
+                                        :value="participant"
+                                        v-model="selectedParticipants"
+                                        class="mr-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    >
+                                    <label
+                                        :for="'participant-' + participant.user_id"
+                                        class="flex-1 cursor-pointer"
+                                    >
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm">
+                                                {{ (participant.display_name || participant.username) }}
+                                            </div>
+                                            <div>
+                                                <div class="font-medium text-gray-900">
+                                                    {{ participant.username || participant.user_id }}
+                                                </div>
+                                                <div v-if="participant" class="text-sm text-gray-500">
+                                                    @{{ participant.display_name || participant.username }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Selected count -->
+                        <div v-if="selectedParticipants.length > 0" class="mt-2 text-sm text-gray-600">
+                            {{ selectedParticipants.length }} participant{{ selectedParticipants.length > 1 ? 's' : '' }} selected
+                        </div>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button
+                            @click="startConversation"
+                            :disabled="selectedParticipants.length === 0 || loadingParticipants"
+                            class="flex-1 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Start Conversation
+                        </button>
+                        <button
+                            @click="showNewConversationModal = false; newConversationParticipants = ''"
+                            class="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    socket: null,
+                    root: null,
+                    isConnected: false,
+                    conversations: [],
+                    selectedConversation: null,
+                    messages: [],
+                    newMessage: '',
+                    showNewConversationModal: false,
+                    newConversationParticipants: '',
+                    requestCounter: 0,
+                    availableParticipants: [],
+                    selectedParticipants: [],
+                    loadingParticipants: false,
+                    participantsError: null
+                };
+            },
+            computed: {
+                connectionStatus() {
+                    return this.isConnected ? 'Connected' : 'Disconnected';
+                },
+                connectionStatusClass() {
+                    return this.isConnected ? 'bg-green-500' : 'bg-red-500';
+                },
+                connectionTextClass() {
+                    return this.isConnected ? 'text-green-700' : 'text-red-700';
+                }
+            },
+            async mounted() {
+                await this.loadProtobuf();
+                this.connect();
+            },
+            methods: {
+                async loadProtobuf() {
+                    try {
+                        // Define the protobuf schema inline
+                        const protoSchema = `
+                            syntax = "proto3";
+                            package org.enkrip.atkins.proto;
+                            import "google/protobuf/timestamp.proto";
+
+                            message RPCRequestEnvelope {
+                                string request_id = 1;
+                                MessageType message_type = 2;
+                                MessageOperationType operation_type = 3;
+                                oneof payload {
+                                    GetListOfConversationsRequest get_list_of_conversations_request = 4;
+                                    StartConversationRequest start_conversation_request = 5;
+                                    SendConversationMessageRequest send_conversation_message_request = 6;
+                                }
+                            }
+
+                            message RPCResponseEnvelope {
+                                string request_id = 1;
+                                MessageType message_type = 2;
+                                MessageOperationType operation_type = 3;
+                                bool success = 4;
+                                string error_code = 5;
+                                string error_message = 6;
+                                oneof payload {
+                                    GetListOfConversationsResponse get_list_of_conversations_response = 7;
+                                    StartConversationResponse start_conversation_response = 8;
+                                    SendConversationMessageResponse send_conversation_message_response = 9;
+                                    ReceiveConversationMessageNotification receive_conversation_message_notification = 10;
+                                }
+                            }
+
+                            message GetListOfConversationsRequest {
+                                optional string before_conversation_id = 1;
+                                int32 limit = 3;
+                            }
+
+                            message GetListOfConversationsResponse {
+                                repeated Conversation conversations = 1;
+                                bool has_more = 2;
+                                string last_conversation_id = 3;
+                            }
+
+                            message StartConversationRequest {
+                                repeated string participant_user_ids = 1;
+                            }
+
+                            message StartConversationResponse {
+                                Conversation conversation = 1;
+                            }
+
+                            message SendConversationMessageRequest {
+                                string conversation_id = 1;
+                                ChatMessageType message_type = 2;
+                                string content = 3;
+                            }
+
+                            message SendConversationMessageResponse {
+                                ChatMessage message = 1;
+                            }
+
+                            message ReceiveConversationMessageNotification {
+                                ChatMessage message = 1;
+                            }
+
+                            message Conversation {
+                                string conversation_id = 1;
+                                optional ChatMessage last_message = 2;
+                                repeated ChatUser participants = 3;
+                                google.protobuf.Timestamp last_updated_timestamp = 4;
+                                int32 version = 5;
+                                int32 unread_count = 6;
+                            }
+
+                            message ChatMessage {
+                                string message_id = 1;
+                                optional string conversation_id = 2;
+                                optional ChatUser sender = 3;
+                                google.protobuf.Timestamp timestamp = 4;
+                                ChatMessageType message_type = 5;
+                                string content = 6;
+                                bool my_message = 7;
+                                bool read = 8;
+                                int32 version = 9;
+                            }
+
+                            message ChatUser {
+                                string user_id = 1;
+                                string username = 2;
+                                optional string display_name = 3;
+                                optional string avatar_url = 4;
+                            }
+
+                            enum MessageOperationType {
+                                GET_LIST_OF_CONVERSATIONS = 0;
+                                GET_CONVERSATION = 1;
+                                START_CONVERSATION = 2;
+                                DELETE_CONVERSATION = 3;
+                                SEND_CONVERSATION_MESSAGE = 4;
+                                DELETE_CONVERSATION_MESSAGE = 5;
+                                RECEIVE_CONVERSATION_MESSAGE = 6;
+                                MARK_CONVERSATION_AS_READ = 7;
+                                TYPING_INDICATOR = 8;
+                            }
+
+                            enum MessageType {
+                                REQUEST = 0;
+                                RESPONSE = 1;
+                                NOTIFICATION = 2;
+                            }
+
+                            enum ChatMessageType {
+                                TEXT = 0;
+                                IMAGE = 1;
+                                FILE = 2;
+                                EMOJI = 3;
+                            }
+                        `;
+
+                        this.root = protobuf.parse(protoSchema).root;
+                        console.log('Protobuf schema loaded successfully');
+                    } catch (error) {
+                        console.error('Failed to load protobuf schema:', error);
+                    }
+                },
+
+                connect() {
+                    try {
+                        this.socket = new WebSocket('ws://localhost:8080/websocket/chat');
+                        this.socket.binaryType = 'arraybuffer';
+
+                        this.socket.onopen = () => {
+                            console.log('WebSocket connection opened');
+                            this.isConnected = true;
+                            this.loadConversations();
+                        };
+
+                        this.socket.onmessage = (event) => {
+                            this.handleMessage(event.data);
+                        };
+
+                        this.socket.onclose = () => {
+                            console.log('WebSocket connection closed');
+                            this.isConnected = false;
+                            // Attempt to reconnect after 3 seconds
+                            setTimeout(() => {
+                                if (!this.isConnected) {
+                                    this.connect();
+                                }
+                            }, 3000);
+                        };
+
+                        this.socket.onerror = (error) => {
+                            console.error('WebSocket error:', error);
+                            this.isConnected = false;
+                        };
+
+                    } catch (error) {
+                        console.error('Failed to create WebSocket connection:', error);
+                    }
+                },
+
+                handleMessage(data) {
+                    try {
+                        const ResponseEnvelope = this.root.lookupType('org.enkrip.atkins.proto.RPCResponseEnvelope');
+                        const message = ResponseEnvelope.decode(new Uint8Array(data));
+                        console.log('Received message:', message);
+
+                        switch (message.operation_type) {
+                            case 0: // GET_LIST_OF_CONVERSATIONS
+                                if (message.get_list_of_conversations_response) {
+                                    this.conversations = message.get_list_of_conversations_response.conversations;
+                                }
+                                break;
+                            case 2: // START_CONVERSATION
+                                if (message.start_conversation_response) {
+                                    this.conversations.unshift(message.start_conversation_response.conversation);
+                                    this.selectConversation(message.start_conversation_response.conversation);
+                                    this.showNewConversationModal = false;
+                                    this.newConversationParticipants = '';
+                                }
+                                break;
+                            case 4: // SEND_CONVERSATION_MESSAGE
+                                if (message.send_conversation_message_response) {
+                                    this.messages.push(message.send_conversation_message_response.message);
+                                    this.scrollToBottom();
+                                }
+                                break;
+                            case 6: // RECEIVE_CONVERSATION_MESSAGE
+                                if (message.receive_conversation_message_notification) {
+                                    const newMessage = message.receive_conversation_message_notification.message;
+                                    if (this.selectedConversation &&
+                                        newMessage.conversation_id === this.selectedConversation.conversation_id) {
+                                        this.messages.push(newMessage);
+                                        this.scrollToBottom();
+                                    }
+                                    // Update conversation list
+                                    this.updateConversationLastMessage(newMessage);
+                                }
+                                break;
+                        }
+                    } catch (error) {
+                        console.error('Failed to decode message:', error);
+                    }
+                },
+
+                sendProtobufMessage(envelope) {
+                    if (this.isConnected && this.socket) {
+                        try {
+                            const RequestEnvelope = this.root.lookupType('org.enkrip.atkins.proto.RPCRequestEnvelope');
+                            const buffer = RequestEnvelope.encode(envelope).finish();
+                            this.socket.send(buffer);
+                        } catch (error) {
+                            console.error('Failed to send message:', error);
+                        }
+                    }
+                },
+
+                generateRequestId() {
+                    return `req_${Date.now()}_${++this.requestCounter}`;
+                },
+
+                loadConversations() {
+                    const envelope = {
+                        request_id: this.generateRequestId(),
+                        message_type: 0, // REQUEST
+                        operation_type: 0, // GET_LIST_OF_CONVERSATIONS
+                        get_list_of_conversations_request: {
+                            limit: 50
+                        }
+                    };
+                    this.sendProtobufMessage(envelope);
+                },
+
+                startConversation() {
+                    if (!this.newConversationParticipants.trim()) return;
+
+                    const participants = this.newConversationParticipants
+                        .split(',')
+                        .map(id => id.trim())
+                        .filter(id => id.length > 0);
+
+                    const envelope = {
+                        request_id: this.generateRequestId(),
+                        message_type: 0, // REQUEST
+                        operation_type: 2, // START_CONVERSATION
+                        start_conversation_request: {
+                            participant_user_ids: participants
+                        }
+                    };
+                    this.sendProtobufMessage(envelope);
+                },
+
+                selectConversation(conversation) {
+                    this.selectedConversation = conversation;
+                    this.messages = []; // Clear current messages
+                    // In a real app, you would load messages for this conversation
+                },
+
+                sendMessage() {
+                    if (!this.newMessage.trim() || !this.selectedConversation) return;
+
+                    const envelope = {
+                        request_id: this.generateRequestId(),
+                        message_type: 0, // REQUEST
+                        operation_type: 4, // SEND_CONVERSATION_MESSAGE
+                        send_conversation_message_request: {
+                            conversation_id: this.selectedConversation.conversation_id,
+                            message_type: 0, // TEXT
+                            content: this.newMessage.trim()
+                        }
+                    };
+
+                    this.sendProtobufMessage(envelope);
+                    this.newMessage = '';
+                },
+
+                updateConversationLastMessage(message) {
+                    const conversation = this.conversations.find(c => c.conversation_id === message.conversation_id);
+                    if (conversation) {
+                        conversation.last_message = message;
+                        conversation.last_updated_timestamp = message.timestamp;
+                        if (!message.my_message) {
+                            conversation.unread_count = (conversation.unread_count || 0) + 1;
+                        }
+                    }
+                },
+
+                getConversationTitle(conversation) {
+                    if (!conversation.participants || conversation.participants.length === 0) {
+                        return 'Unknown Conversation';
+                    }
+                    return conversation.participants
+                        .map(p => p.display_name || p.username)
+                        .join(', ');
+                },
+
+                messageClass(message) {
+                    return message.my_message
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-white text-gray-800 border border-gray-200';
+                },
+
+                formatTime(timestamp) {
+                    if (!timestamp) return '';
+                    const date = new Date(timestamp.seconds * 1000 + timestamp.nanos / 1000000);
+                    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                },
+
+                scrollToBottom() {
+                    this.$nextTick(() => {
+                        const container = this.$refs.messagesContainer;
+                        if (container) {
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    });
+                },
+
+                async openNewConversationModal() {
+                    this.showNewConversationModal = true;
+                    this.selectedParticipants = [];
+                    await this.loadParticipants();
+                },
+
+                async loadParticipants() {
+                    this.loadingParticipants = true;
+                    this.participantsError = null;
+
+                    try {
+                        const response = await fetch('/api/chat/participants');
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        const participantUsernames = await response.json();
+
+                        // Convert the array of usernames to participant objects
+                        this.availableParticipants = participantUsernames.map(username => ({
+                            user_id: username,
+                            username: username,
+                            display_name: username // Use username as display name since that's what we get from the API
+                        }));
+                    } catch (error) {
+                        console.error('Failed to load participants:', error);
+                        this.participantsError = 'Failed to load participants. Please try again.';
+                    } finally {
+                        this.loadingParticipants = false;
+                    }
+                },
+
+                closeNewConversationModal() {
+                    this.showNewConversationModal = false;
+                    this.selectedParticipants = [];
+                    this.participantsError = null;
+                    const container = this.$refs.messagesContainer;
+                    if (container) {
+                        container.scrollTop = container.scrollHeight;
+                    }
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

@@ -26,6 +26,24 @@ public class DatabaseInitConfig {
         try {
             // Execute each table creation statement individually
             executeStatement("""
+                    CREATE TABLE IF NOT EXISTS login_user_by_time (
+                        time_bucket TEXT,
+                        user_id UUID,
+                        login_time TIMESTAMP,
+                        username TEXT
+                        primary key (time_bucket, username)
+                    ) WITH CLUSTERING ORDER BY (username ASC) AND default_time_to_live = 86400
+                    """);
+
+            executeStatement("""
+                    CREATE TABLE IF NOT EXISTS user_by_username (
+                        username TEXT PRIMARY KEY,
+                        user_id UUID,
+                        registration_time TIMESTAMP
+                    )
+                    """);
+
+            executeStatement("""
                 CREATE TABLE IF NOT EXISTS messages_by_room_time (
                     room_id UUID,
                     time_bucket TEXT,
