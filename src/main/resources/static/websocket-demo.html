@@ -24,15 +24,26 @@
             <!-- Header -->
             <div class="p-4 border-b border-gray-200 flex justify-between items-center">
                 <h1 class="text-xl font-semibold text-gray-800">Conversations</h1>
-                <button
-                    @click="openNewConversationModal"
-                    class="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center transition-colors"
-                    title="New Conversation"
-                >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                    </svg>
-                </button>
+                <div class="flex space-x-2">
+                    <button
+                        @click="loadConversations"
+                        class="bg-gray-500 hover:bg-gray-600 text-white rounded-full w-8 h-8 flex items-center justify-center transition-colors"
+                        title="Refresh Conversations"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                    </button>
+                    <button
+                        @click="openNewConversationModal"
+                        class="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center transition-colors"
+                        title="New Conversation"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             <!-- Connection Status -->
@@ -45,15 +56,36 @@
 
             <!-- Conversations List -->
             <div class="flex-1 overflow-y-auto scrollbar-hide">
-                <div v-if="conversations.length === 0" class="p-4 text-center text-gray-500">
+                <!-- Loading state -->
+                <div v-if="loadingConversations" class="p-4 text-center">
+                    <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                    <p class="text-sm text-gray-500 mt-2">Loading conversations...</p>
+                </div>
+                
+                <!-- Error state -->
+                <div v-else-if="conversationsError" class="p-4 text-center">
+                    <p class="text-sm text-red-500 mb-2">{{ conversationsError }}</p>
+                    <button
+                        @click="loadConversations"
+                        class="text-blue-500 hover:text-blue-600 text-sm underline"
+                    >
+                        Retry
+                    </button>
+                </div>
+                
+                <!-- Empty state -->
+                <div v-else-if="conversations.length === 0" class="p-4 text-center text-gray-500">
                     No conversations yet
                 </div>
+                
+                <!-- Conversations -->
                 <div
+                    v-else
                     v-for="conversation in conversations"
-                    :key="conversation.conversation_id"
+                    :key="conversation.conversationId"
                     @click="selectConversation(conversation)"
                     class="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
-                    :class="{ 'bg-blue-50 border-blue-200': selectedConversation?.conversation_id === conversation.conversation_id }"
+                    :class="{ 'bg-blue-50 border-blue-200': selectedConversation?.conversationId === conversation.conversationId }"
                 >
                     <div class="flex justify-between items-start">
                         <div class="flex-1">
@@ -66,12 +98,12 @@
                                     {{ conversation.unread_count }}
                                 </span>
                             </div>
-                            <p v-if="conversation.last_message" class="text-sm text-gray-600 truncate mt-1">
-                                {{ conversation.last_message.content }}
+                            <p v-if="conversation.lastMessage" class="text-sm text-gray-600 truncate mt-1">
+                                {{ conversation.lastMessage.content }}
                             </p>
                         </div>
-                        <span v-if="conversation.last_updated_timestamp" class="text-xs text-gray-400">
-                            {{ formatTime(conversation.last_updated_timestamp) }}
+                        <span v-if="conversation.lastUpdatedTimestamp" class="text-xs text-gray-400">
+                            {{ formatTime(conversation.lastUpdatedTimestamp) }}
                         </span>
                     </div>
                 </div>
@@ -89,7 +121,7 @@
                              :key="participant.user_id"
                              class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs border-2 border-white"
                              :title="participant.display_name || participant.username">
-                            {{ (participant.display_name || participant.username).charAt(0).toUpperCase() }}
+                            {{ (participant.display_name || participant.username) }}
                         </div>
                     </div>
                     <span class="text-sm text-gray-500">{{ selectedConversation.participants.length }} participants</span>
@@ -183,7 +215,7 @@
                                     class="flex items-center p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
                                 >
                                     <input
-                                        type="checkbox"
+                                        type="radio"
                                         :id="'participant-' + participant.user_id"
                                         :value="participant"
                                         v-model="selectedParticipants"
@@ -212,20 +244,20 @@
                         </div>
 
                         <!-- Selected count -->
-                        <div v-if="selectedParticipants.length > 0" class="mt-2 text-sm text-gray-600">
-                            {{ selectedParticipants.length }} participant{{ selectedParticipants.length > 1 ? 's' : '' }} selected
+                        <div v-if="selectedParticipants" class="mt-2 text-sm text-gray-600">
+                            Selected: {{ selectedParticipants.username }}
                         </div>
                     </div>
                     <div class="flex space-x-3">
                         <button
                             @click="startConversation"
-                            :disabled="selectedParticipants.length === 0 || loadingParticipants"
+                            :disabled="!selectedParticipants || loadingParticipants"
                             class="flex-1 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                         >
                             Start Conversation
                         </button>
                         <button
-                            @click="showNewConversationModal = false; newConversationParticipants = ''"
+                            @click="showNewConversationModal = false; selectedParticipants = null"
                             class="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 transition-colors"
                         >
                             Cancel
@@ -253,9 +285,11 @@
                     newConversationParticipants: '',
                     requestCounter: 0,
                     availableParticipants: [],
-                    selectedParticipants: [],
+                    selectedParticipants: null,
                     loadingParticipants: false,
-                    participantsError: null
+                    participantsError: null,
+                    loadingConversations: false,
+                    conversationsError: null
                 };
             },
             computed: {
@@ -272,133 +306,179 @@
             async mounted() {
                 await this.loadProtobuf();
                 this.connect();
+                // Load conversations via HTTP regardless of WebSocket connection status
+                await this.loadConversations();
             },
             methods: {
                 async loadProtobuf() {
                     try {
-                        // Define the protobuf schema inline
+                        console.log('Loading protobuf schema...');
+                        
+                        // Define the complete protobuf schema with inline Timestamp definition
                         const protoSchema = `
                             syntax = "proto3";
-                            package org.enkrip.atkins.proto;
-                            import "google/protobuf/timestamp.proto";
 
+                            package org.enkrip.atkins.proto;
+
+                            option java_package = "org.enkrip.atkins.proto";
+                            option java_outer_classname = "ChatRpcProto";
+                            option java_multiple_files = true;
+
+                            // Inline Timestamp definition to avoid import issues
+                            message Timestamp {
+                              int64 seconds = 1;
+                              int32 nanos = 2;
+                            }
+
+                            // Main RPC envelope message
                             message RPCRequestEnvelope {
-                                string request_id = 1;
-                                MessageType message_type = 2;
-                                MessageOperationType operation_type = 3;
-                                oneof payload {
-                                    GetListOfConversationsRequest get_list_of_conversations_request = 4;
-                                    StartConversationRequest start_conversation_request = 5;
-                                    SendConversationMessageRequest send_conversation_message_request = 6;
-                                }
+                              string request_id = 1; // Unique ID for the request/response pair
+                              MessageType message_type = 2; // Type of message: REQUEST, RESPONSE, NOTIFICATION
+                              MessageOperationType operation_type = 3; // Specific operation being performed
+
+                              oneof payload {
+                                GetListOfConversationsRequest get_list_of_conversations_request = 4;
+                                StartConversationRequest start_conversation_request = 5;
+                                SendConversationMessageRequest send_conversation_message_request = 6;
+                              }
                             }
 
                             message RPCResponseEnvelope {
-                                string request_id = 1;
-                                MessageType message_type = 2;
-                                MessageOperationType operation_type = 3;
-                                bool success = 4;
-                                string error_code = 5;
-                                string error_message = 6;
-                                oneof payload {
-                                    GetListOfConversationsResponse get_list_of_conversations_response = 7;
-                                    StartConversationResponse start_conversation_response = 8;
-                                    SendConversationMessageResponse send_conversation_message_response = 9;
-                                    ReceiveConversationMessageNotification receive_conversation_message_notification = 10;
-                                }
+                              string request_id = 1; // Unique ID for the request/response pair
+                              MessageType message_type = 2; // Type of message: REQUEST, RESPONSE, NOTIFICATION
+                              MessageOperationType operation_type = 3; // Specific operation being performed
+                              bool success = 4; // Indicates if the operation was successful
+                              string error_code = 5; // Error message if success is false
+                              string error_message = 6; // Error message if success is false
+
+                              oneof payload {
+                                GetListOfConversationsResponse get_list_of_conversations_response = 7;
+                                StartConversationResponse start_conversation_response = 8;
+                                SendConversationMessageResponse send_conversation_message_response = 9;
+                                ReceiveConversationMessageNotification receive_conversation_message_notification = 10;
+                              }
                             }
 
                             message GetListOfConversationsRequest {
-                                optional string before_conversation_id = 1;
-                                int32 limit = 3;
+                              optional string before_conversation_id = 1; // For pagination: fetch conversations before this ID
+                              int32 limit = 3; // Maximum number of conversations to fetch
                             }
 
                             message GetListOfConversationsResponse {
-                                repeated Conversation conversations = 1;
-                                bool has_more = 2;
-                                string last_conversation_id = 3;
+                              repeated Conversation conversations = 1; // List of conversations
+                              bool has_more = 2; // Indicates if there are more conversations before the fetched list
+                              string last_conversation_id = 3; // ID of the last conversation in the fetched list for pagination
                             }
 
                             message StartConversationRequest {
-                                repeated string participant_user_ids = 1;
+                              repeated string participant_user_ids = 1; // User IDs of participants to start a conversation with
                             }
 
                             message StartConversationResponse {
-                                Conversation conversation = 1;
+                              Conversation conversation = 1; // The newly created conversation
                             }
 
                             message SendConversationMessageRequest {
-                                string conversation_id = 1;
-                                ChatMessageType message_type = 2;
-                                string content = 3;
+                              string conversation_id = 1; // ID of the conversation to send the message to
+                              ChatMessageType message_type = 2; // Type of message: TEXT, IMAGE, FILE
+                              string content = 3; // Content of the message (text or URL to file/image)
                             }
 
                             message SendConversationMessageResponse {
-                                ChatMessage message = 1;
+                              ChatMessage message = 1; // The sent message
                             }
 
                             message ReceiveConversationMessageNotification {
-                                ChatMessage message = 1;
+                              ChatMessage message = 1; // The received message
                             }
 
                             message Conversation {
-                                string conversation_id = 1;
-                                optional ChatMessage last_message = 2;
-                                repeated ChatUser participants = 3;
-                                google.protobuf.Timestamp last_updated_timestamp = 4;
-                                int32 version = 5;
-                                int32 unread_count = 6;
+                              string conversation_id = 1;
+                              optional ChatMessage last_message = 2;
+                              repeated ChatUser participants = 3;
+                              Timestamp last_updated_timestamp = 4; // Unix timestamp of the last update
+                              int32 version = 5; // Version number for concurrency control
+                              int32 unread_count = 6; // Number of unread messages in the conversation
                             }
 
                             message ChatMessage {
-                                string message_id = 1;
-                                optional string conversation_id = 2;
-                                optional ChatUser sender = 3;
-                                google.protobuf.Timestamp timestamp = 4;
-                                ChatMessageType message_type = 5;
-                                string content = 6;
-                                bool my_message = 7;
-                                bool read = 8;
-                                int32 version = 9;
+                              string message_id = 1;
+                              optional string conversation_id = 2;
+                              optional ChatUser sender = 3;
+                              Timestamp timestamp = 4; // Unix timestamp of when the message was sent
+                              ChatMessageType message_type = 5; // Type of message: TEXT, IMAGE, FILE
+                              string content = 6; // Content of the message (text or URL to file/image)
+                              bool my_message = 7; // Indicates if the message was sent by the current user
+                              bool read = 8; // Indicates if the message has been read by the recipient(s)
+                              int32 version = 9; // Version number for concurrency control
                             }
 
                             message ChatUser {
-                                string user_id = 1;
-                                string username = 2;
-                                optional string display_name = 3;
-                                optional string avatar_url = 4;
+                              string user_id = 1;
+                              string username = 2;
+                              optional string display_name = 3;
+                              optional string avatar_url = 4; // URL to the user's avatar image
                             }
 
                             enum MessageOperationType {
-                                GET_LIST_OF_CONVERSATIONS = 0;
-                                GET_CONVERSATION = 1;
-                                START_CONVERSATION = 2;
-                                DELETE_CONVERSATION = 3;
-                                SEND_CONVERSATION_MESSAGE = 4;
-                                DELETE_CONVERSATION_MESSAGE = 5;
-                                RECEIVE_CONVERSATION_MESSAGE = 6;
-                                MARK_CONVERSATION_AS_READ = 7;
-                                TYPING_INDICATOR = 8;
+                              GET_LIST_OF_CONVERSATIONS = 0;
+                              GET_CONVERSATION = 1;
+                              START_CONVERSATION = 2;
+                              DELETE_CONVERSATION = 3;
+                              SEND_CONVERSATION_MESSAGE = 4;
+                              DELETE_CONVERSATION_MESSAGE = 5;
+                              RECEIVE_CONVERSATION_MESSAGE = 6;
+                              MARK_CONVERSATION_AS_READ = 7;
+                              TYPING_INDICATOR = 8;
                             }
 
                             enum MessageType {
-                                REQUEST = 0;
-                                RESPONSE = 1;
-                                NOTIFICATION = 2;
+                              REQUEST = 0;
+                              RESPONSE = 1;
+                              NOTIFICATION = 2;
                             }
 
                             enum ChatMessageType {
-                                TEXT = 0;
-                                IMAGE = 1;
-                                FILE = 2;
-                                EMOJI = 3;
+                              TEXT = 0;
+                              IMAGE = 1;
+                              FILE = 2;
+                              EMOJI = 3;
                             }
                         `;
 
-                        this.root = protobuf.parse(protoSchema).root;
+                        console.log('Parsing protobuf schema...');
+                        
+                        // Parse the schema using protobuf.js
+                        const parsed = protobuf.parse(protoSchema);
+                        this.root = parsed.root;
+                        
                         console.log('Protobuf schema loaded successfully');
+                        
+                        // Test type lookup to verify everything is working
+                        const testType = this.root.lookupType('org.enkrip.atkins.proto.RPCRequestEnvelope');
+                        console.log('RPCRequestEnvelope type found:', !!testType);
+                        
+                        if (testType) {
+                            console.log('RPCRequestEnvelope fields:', Object.keys(testType.fields));
+                            
+                            // Test simple message creation
+                            const testEnvelope = {
+                                requestId: 'test_123',
+                                messageType: 0,
+                                operationType: 0
+                            };
+                            
+                            console.log('Testing simple message creation...');
+                            const testMessage = testType.create(testEnvelope);
+                            console.log('Test message created successfully');
+                            
+                            const testBuffer = testType.encode(testMessage).finish();
+                            console.log('Test encoding successful, buffer length:', testBuffer.length);
+                        }
                     } catch (error) {
                         console.error('Failed to load protobuf schema:', error);
+                        console.error('Error details:', error.message);
+                        console.error('Stack trace:', error.stack);
                     }
                 },
 
@@ -410,6 +490,7 @@
                         this.socket.onopen = () => {
                             console.log('WebSocket connection opened');
                             this.isConnected = true;
+                            // Load conversations via HTTP instead of WebSocket
                             this.loadConversations();
                         };
 
@@ -444,31 +525,27 @@
                         const message = ResponseEnvelope.decode(new Uint8Array(data));
                         console.log('Received message:', message);
 
-                        switch (message.operation_type) {
-                            case 0: // GET_LIST_OF_CONVERSATIONS
-                                if (message.get_list_of_conversations_response) {
-                                    this.conversations = message.get_list_of_conversations_response.conversations;
-                                }
-                                break;
+                        switch (message.operationType) {
                             case 2: // START_CONVERSATION
-                                if (message.start_conversation_response) {
-                                    this.conversations.unshift(message.start_conversation_response.conversation);
-                                    this.selectConversation(message.start_conversation_response.conversation);
+                                if (message.startConversationResponse) {
+                                    // Reload conversations via HTTP to get the new conversation
+                                    this.loadConversations();
+                                    this.selectConversation(message.startConversationResponse.conversation);
                                     this.showNewConversationModal = false;
-                                    this.newConversationParticipants = '';
+                                    this.selectedParticipants = null;
                                 }
                                 break;
                             case 4: // SEND_CONVERSATION_MESSAGE
-                                if (message.send_conversation_message_response) {
-                                    this.messages.push(message.send_conversation_message_response.message);
+                                if (message.sendConversationMessageResponse) {
+                                    this.messages.push(message.sendConversationMessageResponse.message);
                                     this.scrollToBottom();
                                 }
                                 break;
                             case 6: // RECEIVE_CONVERSATION_MESSAGE
-                                if (message.receive_conversation_message_notification) {
-                                    const newMessage = message.receive_conversation_message_notification.message;
+                                if (message.receiveConversationMessageNotification) {
+                                    const newMessage = message.receiveConversationMessageNotification.message;
                                     if (this.selectedConversation &&
-                                        newMessage.conversation_id === this.selectedConversation.conversation_id) {
+                                        newMessage.conversationId === this.selectedConversation.conversationId) {
                                         this.messages.push(newMessage);
                                         this.scrollToBottom();
                                     }
@@ -483,14 +560,45 @@
                 },
 
                 sendProtobufMessage(envelope) {
-                    if (this.isConnected && this.socket) {
-                        try {
-                            const RequestEnvelope = this.root.lookupType('org.enkrip.atkins.proto.RPCRequestEnvelope');
-                            const buffer = RequestEnvelope.encode(envelope).finish();
-                            this.socket.send(buffer);
-                        } catch (error) {
-                            console.error('Failed to send message:', error);
-                        }
+                    if (!this.isConnected || !this.socket) {
+                        console.error('WebSocket not connected');
+                        return;
+                    }
+
+                    if (!this.root) {
+                        console.error('Protobuf root not loaded');
+                        return;
+                    }
+
+                    try {
+                        console.log('Sending envelope:', JSON.stringify(envelope, null, 2));
+                        const RequestEnvelope = this.root.lookupType('org.enkrip.atkins.proto.RPCRequestEnvelope');
+                        console.log('RequestEnvelope type found:', !!RequestEnvelope);
+                        
+                        // Validate the envelope structure
+                        console.log('Envelope validation:');
+                        console.log('- requestId:', envelope.requestId);
+                        console.log('- messageType:', envelope.messageType);
+                        console.log('- operationType:', envelope.operationType);
+                        console.log('- payload keys:', Object.keys(envelope).filter(k => !['requestId', 'messageType', 'operationType'].includes(k)));
+                        
+                        const message = RequestEnvelope.create(envelope);
+                        console.log('Created message:', message);
+                        
+                        const errorMsg = RequestEnvelope.verify(message);
+                        if (errorMsg) throw Error(`Protobuf verification failed: ${errorMsg}`);
+                        
+                        const buffer = RequestEnvelope.encode(message).finish();
+                        console.log('Encoded buffer:', buffer);
+                        console.log('Encoded buffer length:', buffer.length);
+                        console.log('Encoded buffer bytes:', Array.from(buffer).map(b => b.toString(16).padStart(2, '0')).join(' '));
+                        
+                        this.socket.send(buffer);
+                        console.log('Message sent successfully');
+                    } catch (error) {
+                        console.error('Failed to send message:', error);
+                        console.error('Envelope that failed:', envelope);
+                        console.error('Error stack:', error.stack);
                     }
                 },
 
@@ -498,34 +606,42 @@
                     return `req_${Date.now()}_${++this.requestCounter}`;
                 },
 
-                loadConversations() {
-                    const envelope = {
-                        request_id: this.generateRequestId(),
-                        message_type: 0, // REQUEST
-                        operation_type: 0, // GET_LIST_OF_CONVERSATIONS
-                        get_list_of_conversations_request: {
-                            limit: 50
+                async loadConversations() {
+                    this.loadingConversations = true;
+                    this.conversationsError = null;
+                    
+                    try {
+                        const response = await fetch('/api/chat/conversations');
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
                         }
-                    };
-                    this.sendProtobufMessage(envelope);
+                        const conversations = await response.json();
+                        this.conversations = Array.isArray(conversations) ? conversations : Array.from(conversations);
+                        console.log('Loaded conversations:', this.conversations);
+                    } catch (error) {
+                        console.error('Failed to load conversations:', error);
+                        this.conversationsError = 'Failed to load conversations. Please try again.';
+                        this.conversations = [];
+                    } finally {
+                        this.loadingConversations = false;
+                    }
                 },
 
                 startConversation() {
-                    if (!this.newConversationParticipants.trim()) return;
-
-                    const participants = this.newConversationParticipants
-                        .split(',')
-                        .map(id => id.trim())
-                        .filter(id => id.length > 0);
+                    if (!this.selectedParticipants) {
+                        console.error('No participant selected');
+                        return;
+                    }
 
                     const envelope = {
-                        request_id: this.generateRequestId(),
-                        message_type: 0, // REQUEST
-                        operation_type: 2, // START_CONVERSATION
-                        start_conversation_request: {
-                            participant_user_ids: participants
+                        requestId: this.generateRequestId(),
+                        messageType: 0, // REQUEST
+                        operationType: 2, // START_CONVERSATION
+                        startConversationRequest: {
+                            participantUserIds: [this.selectedParticipants.username]
                         }
                     };
+                    console.log('Sending start conversation request:', envelope);
                     this.sendProtobufMessage(envelope);
                 },
 
@@ -539,12 +655,12 @@
                     if (!this.newMessage.trim() || !this.selectedConversation) return;
 
                     const envelope = {
-                        request_id: this.generateRequestId(),
-                        message_type: 0, // REQUEST
-                        operation_type: 4, // SEND_CONVERSATION_MESSAGE
-                        send_conversation_message_request: {
-                            conversation_id: this.selectedConversation.conversation_id,
-                            message_type: 0, // TEXT
+                        requestId: this.generateRequestId(),
+                        messageType: 0, // REQUEST
+                        operationType: 4, // SEND_CONVERSATION_MESSAGE
+                        sendConversationMessageRequest: {
+                            conversationId: this.selectedConversation.conversationId,
+                            messageType: 0, // TEXT
                             content: this.newMessage.trim()
                         }
                     };
@@ -554,12 +670,12 @@
                 },
 
                 updateConversationLastMessage(message) {
-                    const conversation = this.conversations.find(c => c.conversation_id === message.conversation_id);
+                    const conversation = this.conversations.find(c => c.conversationId === message.conversationId);
                     if (conversation) {
-                        conversation.last_message = message;
-                        conversation.last_updated_timestamp = message.timestamp;
-                        if (!message.my_message) {
-                            conversation.unread_count = (conversation.unread_count || 0) + 1;
+                        conversation.lastMessage = message;
+                        conversation.lastUpdatedTimestamp = message.timestamp;
+                        if (!message.myMessage) {
+                            conversation.unreadCount = (conversation.unreadCount || 0) + 1;
                         }
                     }
                 },
@@ -574,14 +690,28 @@
                 },
 
                 messageClass(message) {
-                    return message.my_message
+                    return message.myMessage
                         ? 'bg-blue-500 text-white'
                         : 'bg-white text-gray-800 border border-gray-200';
                 },
 
                 formatTime(timestamp) {
                     if (!timestamp) return '';
-                    const date = new Date(timestamp.seconds * 1000 + timestamp.nanos / 1000000);
+                    
+                    // Handle Google Protobuf Timestamp format
+                    let date;
+                    if (typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+                        // Google Protobuf Timestamp format: {seconds: number, nanos: number}
+                        const seconds = typeof timestamp.seconds === 'string' ? parseInt(timestamp.seconds) : timestamp.seconds;
+                        const nanos = timestamp.nanos || 0;
+                        date = new Date(seconds * 1000 + nanos / 1000000);
+                    } else if (typeof timestamp === 'number') {
+                        // Simple timestamp in milliseconds
+                        date = new Date(timestamp);
+                    } else {
+                        return '';
+                    }
+                    
                     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 },
 
@@ -596,7 +726,7 @@
 
                 async openNewConversationModal() {
                     this.showNewConversationModal = true;
-                    this.selectedParticipants = [];
+                    this.selectedParticipants = null;
                     await this.loadParticipants();
                 },
 
@@ -627,12 +757,8 @@
 
                 closeNewConversationModal() {
                     this.showNewConversationModal = false;
-                    this.selectedParticipants = [];
+                    this.selectedParticipants = null;
                     this.participantsError = null;
-                    const container = this.$refs.messagesContainer;
-                    if (container) {
-                        container.scrollTop = container.scrollHeight;
-                    }
                 }
             }
         }).mount('#app');
