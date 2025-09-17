@@ -5,7 +5,9 @@
 package org.enkrip.atkins.shared.websocket;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketMessage;
@@ -29,36 +31,20 @@ public class WebSocketSessionService {
     private final Map<String, Set<WebSocketSession>> httpSessionMap = new ConcurrentHashMap<>();
 
     public String afterConnectionEstablished(WebSocketSession session) throws IOException {
-        String username = session.getHandshakeHeaders()
-                .getOrDefault("X-Username", List.of(UUID.randomUUID().toString()))
-                .getFirst();
-
-        String httpSessionId = getHttpSessionId(session);
+        String httpSessionId = getOrCreateSession(session.getAttributes(), session.getHandshakeHeaders());
 
         httpSessionMap.computeIfAbsent(httpSessionId, s -> new HashSet<>()).add(session);
-        usernameSessionId.put(username, httpSessionId);
-        sessionIdUsername.put(httpSessionId, username);
 
-        return username;
+        return httpSessionId;
     }
 
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        String sessionId = getHttpSessionId(session);
+        String sessionId = getHttpSessionId(session.getAttributes());
         Set<WebSocketSession> webSocketSessions = httpSessionMap.get(sessionId);
 
         Optional.ofNullable(webSocketSessions).ifPresent(s -> s.remove(session));
         String username = sessionIdUsername.remove(sessionId);
         Optional.ofNullable(username).ifPresent(usernameSessionId::remove);
-    }
-
-    private String getHttpSessionId(WebSocketSession session) {
-        String httpSessionId = (String) session.getAttributes().get(HttpSessionHandshakeInterceptor.HTTP_SESSION_ID_ATTR_NAME);
-
-        if (StringUtils.isBlank(httpSessionId)) {
-            throw new RuntimeException("HTTP session ID is missing in WebSocket session attributes");
-        }
-
-        return httpSessionId;
     }
 
     public int sendMessage(String username, WebSocketMessage<?> message) {
@@ -90,10 +76,39 @@ public class WebSocketSessionService {
     }
 
     public String getCurrentUsername(WebSocketSession session) {
-        return sessionIdUsername.get(getHttpSessionId(session));
+        return sessionIdUsername.get(getOrCreateSession(session.getAttributes(), session.getHandshakeHeaders()));
     }
 
     public String getCurrentUsername(HttpServletRequest request) {
-        return sessionIdUsername.get(request.getSession().getId());
+        HttpSession session = request.getSession(true);
+
+        Map<String, Object> sessionAttributes = new HashMap<>();
+        sessionAttributes.put(HttpSessionHandshakeInterceptor.HTTP_SESSION_ID_ATTR_NAME, session.getId());
+        String sessionId = getOrCreateSession(sessionAttributes, new HttpHeaders());
+
+        return sessionIdUsername.get(sessionId);
+    }
+
+    public String getOrCreateSession(Map<String, Object> sessionAttributes, HttpHeaders httpHeaders) {
+        String httpSessionId = getHttpSessionId(sessionAttributes);
+
+        String username = httpHeaders
+                .getOrDefault("X-Username", List.of(httpSessionId))
+                .getFirst();
+
+        usernameSessionId.put(username, httpSessionId);
+        sessionIdUsername.put(httpSessionId, username);
+
+        return httpSessionId;
+    }
+
+    private String getHttpSessionId(Map<String, Object> sessionAttributes) {
+        String httpSessionId = (String) sessionAttributes.get(HttpSessionHandshakeInterceptor.HTTP_SESSION_ID_ATTR_NAME);
+
+        if (StringUtils.isBlank(httpSessionId)) {
+            throw new RuntimeException("HTTP session ID is missing in WebSocket session attributes");
+        }
+
+        return httpSessionId;
     }
 }

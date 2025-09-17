@@ -684,9 +684,7 @@
                     if (!conversation.participants || conversation.participants.length === 0) {
                         return 'Unknown Conversation';
                     }
-                    return conversation.participants
-                        .map(p => p.display_name || p.username)
-                        .join(', ');
+                    return conversation.conversationId;
                 },
 
                 messageClass(message) {

@@ -164,7 +164,7 @@ public class ConversationService {
                 .orElseThrow(RuntimeException::new);
         RPCResponseEnvelope notification = RPCResponseEnvelope.newBuilder()
                 .setMessageType(MessageType.NOTIFICATION)
-                .setOperationType(MessageOperationType.SEND_CONVERSATION_MESSAGE)
+                .setOperationType(MessageOperationType.RECEIVE_CONVERSATION_MESSAGE)
                 .setReceiveConversationMessageNotification(ReceiveConversationMessageNotification.newBuilder()
                         .setMessage(chatMessageBuilder.setMyMessage(false))
                 )
@@ -209,15 +209,9 @@ public class ConversationService {
         
         GetListOfConversationsRequest getRequest = request.getGetListOfConversationsRequest();
         Set<Conversation> userConversations = getUserConversations(currentUser);
-        
-        // Convert to list and sort by last updated timestamp (descending)
-        List<Conversation> sortedConversations = userConversations.stream()
-                .sorted((c1, c2) -> Timestamps.compare(c2.getLastUpdatedTimestamp(), c1.getLastUpdatedTimestamp()))
-                .limit(getRequest.getLimit())
-                .collect(Collectors.toList());
-        
+
         GetListOfConversationsResponse getResponse = GetListOfConversationsResponse.newBuilder()
-                .addAllConversations(sortedConversations)
+                .addAllConversations(userConversations)
                 .setHasMore(false) // For simplicity, we'll assume no pagination for now
                 .build();
         
