@@ -93,9 +93,9 @@
                                 <h3 class="font-medium text-gray-900 truncate">
                                     {{ getConversationTitle(conversation) }}
                                 </h3>
-                                <span v-if="conversation.unread_count > 0"
+                                <span v-if="conversation.unreadCount > 0"
                                       class="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                                    {{ conversation.unread_count }}
+                                    {{ conversation.unreadCount }}
                                 </span>
                             </div>
                             <p v-if="conversation.lastMessage" class="text-sm text-gray-600 truncate mt-1">
@@ -118,10 +118,10 @@
                 <div class="flex items-center space-x-2 mt-1">
                     <div class="flex -space-x-2">
                         <div v-for="participant in selectedConversation.participants"
-                             :key="participant.user_id"
+                             :key="participant.userId"
                              class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs border-2 border-white"
-                             :title="participant.display_name || participant.username">
-                            {{ (participant.display_name || participant.username) }}
+                             :title="participant.displayName || participant.username">
+                            {{ (participant.displayName || participant.username) }}
                         </div>
                     </div>
                     <span class="text-sm text-gray-500">{{ selectedConversation.participants.length }} participants</span>
@@ -143,13 +143,13 @@
 
             <!-- Messages -->
             <div v-if="selectedConversation" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 scrollbar-hide" ref="messagesContainer">
-                <div v-for="message in messages" :key="message.message_id" class="flex" :class="{ 'justify-end': message.my_message }">
+                <div v-for="message in messages" :key="message.messageId" class="flex" :class="{ 'justify-end': message.myMessage }">
                     <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg" :class="messageClass(message)">
-                        <div v-if="!message.my_message" class="text-xs text-gray-600 mb-1">
-                            {{ message.sender?.display_name || message.sender?.username || 'Unknown' }}
+                        <div v-if="!message.myMessage" class="text-xs text-gray-600 mb-1">
+                            {{ message.sender?.userId }}
                         </div>
                         <div class="text-sm">{{ message.content }}</div>
-                        <div class="text-xs mt-1" :class="message.my_message ? 'text-blue-200' : 'text-gray-500'">
+                        <div class="text-xs mt-1" :class="message.myMessage ? 'text-blue-200' : 'text-gray-500'">
                             {{ formatTime(message.timestamp) }}
                         </div>
                     </div>
@@ -446,35 +446,10 @@
                             }
                         `;
 
-                        console.log('Parsing protobuf schema...');
-                        
                         // Parse the schema using protobuf.js
                         const parsed = protobuf.parse(protoSchema);
                         this.root = parsed.root;
-                        
-                        console.log('Protobuf schema loaded successfully');
-                        
-                        // Test type lookup to verify everything is working
-                        const testType = this.root.lookupType('org.enkrip.atkins.proto.RPCRequestEnvelope');
-                        console.log('RPCRequestEnvelope type found:', !!testType);
-                        
-                        if (testType) {
-                            console.log('RPCRequestEnvelope fields:', Object.keys(testType.fields));
-                            
-                            // Test simple message creation
-                            const testEnvelope = {
-                                requestId: 'test_123',
-                                messageType: 0,
-                                operationType: 0
-                            };
-                            
-                            console.log('Testing simple message creation...');
-                            const testMessage = testType.create(testEnvelope);
-                            console.log('Test message created successfully');
-                            
-                            const testBuffer = testType.encode(testMessage).finish();
-                            console.log('Test encoding successful, buffer length:', testBuffer.length);
-                        }
+
                     } catch (error) {
                         console.error('Failed to load protobuf schema:', error);
                         console.error('Error details:', error.message);
@@ -645,10 +620,14 @@
                     this.sendProtobufMessage(envelope);
                 },
 
-                selectConversation(conversation) {
+                async selectConversation(conversation) {
                     this.selectedConversation = conversation;
-                    this.messages = []; // Clear current messages
-                    // In a real app, you would load messages for this conversation
+                    this.messages = await fetch(`/api/chat/conversations/${conversation.conversationId}/messages`)
+                        .then(res => res.ok ? res.json() : [])
+                        .catch(err => {
+                            console.error('Failed to load messages:', err);
+                            return [];
+                        });
                 },
 
                 sendMessage() {
@@ -677,6 +656,9 @@
                         if (!message.myMessage) {
                             conversation.unreadCount = (conversation.unreadCount || 0) + 1;
                         }
+                    } else {
+                        // If conversation not found, reload conversations
+                        this.loadConversations();
                     }
                 },
 
@@ -703,7 +685,7 @@
                         const seconds = typeof timestamp.seconds === 'string' ? parseInt(timestamp.seconds) : timestamp.seconds;
                         const nanos = timestamp.nanos || 0;
                         date = new Date(seconds * 1000 + nanos / 1000000);
-                    } else if (typeof timestamp === 'number') {
+                    } else if (typeof timestamp === 'number' || typeof timestamp === 'string') {
                         // Simple timestamp in milliseconds
                         date = new Date(timestamp);
                     } else {

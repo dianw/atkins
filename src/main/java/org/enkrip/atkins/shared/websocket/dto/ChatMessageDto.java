@@ -18,24 +18,6 @@ public class ChatMessageDto {
     private boolean read;
     private int version;
 
-    // Default constructor
-    public ChatMessageDto() {}
-
-    // Constructor with all fields
-    public ChatMessageDto(String messageId, String conversationId, ChatUserDto sender, 
-                         Instant timestamp, String messageType, String content, 
-                         boolean myMessage, boolean read, int version) {
-        this.messageId = messageId;
-        this.conversationId = conversationId;
-        this.sender = sender;
-        this.timestamp = timestamp;
-        this.messageType = messageType;
-        this.content = content;
-        this.myMessage = myMessage;
-        this.read = read;
-        this.version = version;
-    }
-
     // Getters and Setters
     public String getMessageId() {
         return messageId;

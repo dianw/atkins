@@ -18,6 +18,7 @@
         <scylla.version>4.19.0.1</scylla.version>
         <protobuf.version>4.32.1</protobuf.version>
         <protobuf-maven-plugin.version>3.9.0</protobuf-maven-plugin.version>
+        <mapstruct.version>1.6.0</mapstruct.version>
     </properties>
     
     <dependencyManagement>
@@ -124,6 +125,19 @@
             <version>${protobuf.version}</version>
         </dependency>
         
+        <!-- MapStruct -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${mapstruct.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+            <version>${mapstruct.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        
     </dependencies>
     
     <build>
@@ -143,6 +157,13 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>

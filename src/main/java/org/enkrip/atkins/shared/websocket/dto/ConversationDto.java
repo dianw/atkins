@@ -14,21 +14,6 @@ public class ConversationDto {
     private int version;
     private int unreadCount;
 
-    // Default constructor
-    public ConversationDto() {}
-
-    // Constructor with all fields
-    public ConversationDto(String conversationId, ChatMessageDto lastMessage, 
-                          List<ChatUserDto> participants, Instant lastUpdatedTimestamp, 
-                          int version, int unreadCount) {
-        this.conversationId = conversationId;
-        this.lastMessage = lastMessage;
-        this.participants = participants;
-        this.lastUpdatedTimestamp = lastUpdatedTimestamp;
-        this.version = version;
-        this.unreadCount = unreadCount;
-    }
-
     // Getters and Setters
     public String getConversationId() {
         return conversationId;

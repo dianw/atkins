@@ -5,6 +5,7 @@ spring:
   application:
     name: atkins
   cassandra:
+
     contact-points: 
       - 127.0.0.1:9042
       - 127.0.0.1:9043

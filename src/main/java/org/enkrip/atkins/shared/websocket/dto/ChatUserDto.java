@@ -11,17 +11,6 @@ public class ChatUserDto {
     private String displayName;
     private String avatarUrl;
 
-    // Default constructor
-    public ChatUserDto() {}
-
-    // Constructor with all fields
-    public ChatUserDto(String userId, String username, String displayName, String avatarUrl) {
-        this.userId = userId;
-        this.username = username;
-        this.displayName = displayName;
-        this.avatarUrl = avatarUrl;
-    }
-
     // Getters and Setters
     public String getUserId() {
         return userId;

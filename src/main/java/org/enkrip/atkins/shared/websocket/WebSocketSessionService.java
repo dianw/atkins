@@ -48,11 +48,11 @@ public class WebSocketSessionService {
     }
 
     public int sendMessage(String username, WebSocketMessage<?> message) {
-        String sessionId = usernameSessionId.get(username);
-        Set<WebSocketSession> webSocketSessions = httpSessionMap.get(sessionId);
+        String sessionId = usernameSessionId.getOrDefault(username, "");
+        Set<WebSocketSession> webSocketSessions = httpSessionMap.getOrDefault(sessionId, Set.of());
 
         AtomicInteger atomicInteger = new AtomicInteger();
-        webSocketSessions.forEach(webSocketSession -> {
+        webSocketSessions.stream().filter(WebSocketSession::isOpen).forEach(webSocketSession -> {
             try {
                 webSocketSession.sendMessage(message);
                 atomicInteger.incrementAndGet();

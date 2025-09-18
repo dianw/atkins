@@ -31,6 +31,7 @@ public class ConversationService {
 
     // Maps userId to their conversations
     private final Map<String, Set<Conversation>> userConversations = new ConcurrentHashMap<>();
+    private final Map<String, Set<String>> userConversationIds = new ConcurrentHashMap<>();
 
     // Maps conversationId to its messages
     private final Map<String, Set<ChatMessage>> conversationMessages = new ConcurrentHashMap<>();
@@ -102,7 +103,13 @@ public class ConversationService {
 
         conversationIdConversation.put(conversationId, conversation);
         Stream.of(currentUser, participant).forEach(user -> {
-            userConversations.computeIfAbsent(user, k -> new TreeSet<>(conversationDateComparator))
+            boolean unique = userConversationIds.computeIfAbsent(user, u -> new HashSet<>())
+                    .add(conversation.getConversationId());
+            if (!unique) {
+                return; // Conversation already exists for user
+            }
+            userConversations
+                    .computeIfAbsent(user, k -> new TreeSet<>(conversationDateComparator))
                     .add(conversation);
         });
         conversationMessages.putIfAbsent(conversationId, new TreeSet<>(messageDateComparator));
@@ -206,7 +213,7 @@ public class ConversationService {
 
     public void getListOfConversations(WebSocketSession session, RPCRequestEnvelope request) {
         final String currentUser = webSocketSessionService.getCurrentUsername(session);
-        
+
         GetListOfConversationsRequest getRequest = request.getGetListOfConversationsRequest();
         Set<Conversation> userConversations = getUserConversations(currentUser);
 
@@ -214,7 +221,7 @@ public class ConversationService {
                 .addAllConversations(userConversations)
                 .setHasMore(false) // For simplicity, we'll assume no pagination for now
                 .build();
-        
+
         RPCResponseEnvelope response = RPCResponseEnvelope.newBuilder()
                 .setRequestId(request.getRequestId())
                 .setMessageType(MessageType.RESPONSE)
@@ -222,7 +229,7 @@ public class ConversationService {
                 .setSuccess(true)
                 .setGetListOfConversationsResponse(getResponse)
                 .build();
-        
+
         webSocketSessionService.sendMessage(currentUser, new BinaryMessage(response.toByteArray()));
     }
 
@@ -231,6 +238,46 @@ public class ConversationService {
             return Set.of();
         }
         return userConversations.getOrDefault(username, Set.of());
+    }
+
+    /**
+     * Get messages for a specific conversation
+     *
+     * @param conversationId the conversation ID
+     * @param currentUser    the current user requesting the messages
+     * @return set of messages in the conversation, or empty set if conversation doesn't exist or user doesn't have access
+     */
+    public Set<ChatMessage> getConversationMessages(String conversationId, String currentUser) {
+        if (conversationId == null || currentUser == null) {
+            return Set.of();
+        }
+
+        // Check if conversation exists
+        Conversation conversation = conversationIdConversation.get(conversationId);
+        if (conversation == null) {
+            return Set.of();
+        }
+
+        // Check if user is part of the conversation
+        boolean userInConversation = conversation.getParticipantsList()
+                .stream()
+                .map(ChatUser::getUserId)
+                .anyMatch(currentUser::equals);
+
+        if (!userInConversation) {
+            return Set.of();
+        }
+
+        return conversationMessages.getOrDefault(conversationId, Set.of())
+                .stream()
+                .map(chatMessage -> {
+                    if (chatMessage.getSender().getUserId().equals(currentUser)) {
+                        return ChatMessage.newBuilder(chatMessage).setMyMessage(true).build();
+                    } else {
+                        return ChatMessage.newBuilder(chatMessage).setMyMessage(false).build();
+                    }
+                })
+                .collect(Collectors.toSet());
     }
 
 }
